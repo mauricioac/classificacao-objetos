@@ -27,6 +27,11 @@ Scalar cores[] = {
   Scalar(0, 255, 255)
 };
 
+float distanciaEuclidiana(Point& p, Point& q) {
+    Point diff = p - q;
+    return cv::sqrt(diff.x*diff.x + diff.y*diff.y);
+}
+
 class Objeto {
 public:
 
@@ -72,39 +77,35 @@ public:
     classe = _classe;
   }
 
-  int track(Mat &crop, Mat &image) {
-    float range[] = { 0, 180};
-    const float *ranges[] = { range };
-    int channels[] = {0};
+  int track(vector< vector<Point> > &contornos, Mat &image) {
+    int menor_indice = -1;
+    double menor_distancia = std::numeric_limits<double>::max();
+    bool achou = false;
+    Point centro(wind.x + (wind.width / 2), wind.y + (wind.height / 2));
 
-    try {
-	    // converte pra HSV
-	    cvtColor(crop,fhsv,CV_BGR2HSV);
-	    // calcula back projeção
-	    calcBackProject(&fhsv,1,channels,rhist,fbproj,ranges);
+    for (int i = 0; i < (int) contornos.size(); i++)
+    {
+      Rect bb = boundingRect(contornos[i]);
+      Point c(bb.x + (bb.width / 2), bb.y + (bb.height / 2));
 
-	    // elimina valores que não batem com o objeto
-	    threshold(fbproj, fbthr, 60, 255,CV_THRESH_BINARY_INV);
-	    normalize(fbthr,fbthr,0,255,NORM_MINMAX);
+      float res = distanciaEuclidiana(c, centro);
 
-      // imshow("video", fbthr);
-      // waitKey(1000);
+      if (res < 25 && res < menor_distancia) {
+        menor_distancia = res;
+        menor_indice = i;
+        achou = true;
+      }
+    }
 
-	    // Executa camshift
-	    // 5 iterações, precisão 0.1
-	    RotatedRect rect = CamShift(fbthr,wind,TermCriteria(CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 5, 0.1));
-
-	    // desenha retangulo de tracking na imagem
-	    Point2f vertices[4];
-	    rect.points(vertices);
-	    for (int i = 0; i < 4; i++) {
-	      line(image, vertices[i], vertices[(i+1)%4], cores[classe]);
-	    }
-
-      return 1;
-    } catch (int e) {
+    if (!achou) {
       return -1;
     }
+
+    wind = boundingRect(contornos[menor_indice]);
+
+    rectangle(image, wind, cores[classe], 1);
+
+    return 1;
   }
 };
 
@@ -319,7 +320,7 @@ int main(int argc, char *argv[]) {
     // percorre objetos, chamando Camshift
     vector<Objeto> novos_objetos;
     for (int i = 0; i < (int) objetos.size(); i++) {
-      int result = objetos[i].track(crop, frame);
+      int result = objetos[i].track(contornos, frame);
 
       if (result == -1) continue;
 
@@ -359,77 +360,6 @@ int main(int argc, char *argv[]) {
   }
 
   cout << "Contou " << contador << " objetos no total" << endl;
-
-
-  // Mat imagem = imread("objetos.png");
-  // Mat background = imread("background.jpg");
-
-  // // cvtColor(imagem, imagem, CV_BGR2HSV);
-  // // cvtColor(background, background, CV_BGR2HSV);
-
-  // Ptr< BackgroundSubtractorMOG2> mog2 = createBackgroundSubtractorMOG2(500,60,true);
-  // Mat mascara_background(background.rows, background.cols, background.type());
-  // Mat binaryImg;
-
-  // mog2->setBackgroundRatio(0.9);
-
-  // mog2->apply(background, mascara_background);
-
-
-  // mog2->setBackgroundRatio(0.001);
-
-  // mog2->apply(imagem, mascara_background);
-
-  // threshold(mascara_background, binaryImg, 50, 255, CV_THRESH_BINARY);
-
-  // Mat binOrig = binaryImg.clone();
-  // Mat ContourImg;
-
-  // vector< vector<Point> > contornos;
-  // findContours(binaryImg, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
-
-  // Mat mask = Mat::zeros(binOrig.rows, binOrig.cols, CV_8UC1);
-  // drawContours(mask, contornos, -1, Scalar(255, 255, 255), CV_FILLED);
-
-  // Mat crop(imagem.rows, imagem.cols, imagem.type());
-  // crop.setTo(Scalar(255,255,255));
-  // imagem.copyTo(crop, mask);
-
-
-  // for (int i = 0; i < (int) contornos.size(); i++) {
-  //   Rect bb = boundingRect(contornos[i]);
-
-  //   if (bb.height < 20 || bb.width < 20) {
-  //     continue;
-  //   }
-
-
-  //   Mat pedaco = crop(bb);
-
-
-  //   MatND histograma = calculaHistograma(pedaco);
-  //   int classe = -1;
-  //   double maior = -1;
-
-  //   for (int j = 0; j < (int) modelos.size(); j++) {
-  //     double resultado = compareHist(histograma, modelos[j], CV_COMP_CORREL);
-  //     if (resultado >= 0.9 && resultado >= maior) {
-  //       classe = j;
-  //       break;
-  //     }
-  //   }
-
-  //   if (classe == -1) {
-  //     modelos.push_back(histograma);
-  //     rectangle(imagem, bb, cores[modelos.size() - 1], 2);
-  //   } else {
-  //     rectangle(imagem, bb, cores[classe], 2);
-  //   }
-  // }
-
-  // namedWindow("img", WINDOW_AUTOSIZE);
-  // imshow("img", imagem);
-  // waitKey(10000);
 
   return 0;
 }

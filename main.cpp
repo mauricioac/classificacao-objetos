@@ -17,6 +17,16 @@
 using namespace std;
 using namespace cv;
 
+vector<MatND> modelos;
+Scalar cores[] = {
+  Scalar(255, 0, 0),
+  Scalar(255, 255, 0),
+  Scalar(255, 0, 255),
+  Scalar(0, 255, 0),
+  Scalar(0, 0, 255),
+  Scalar(0, 255, 255)
+};
+
 class Objeto {
 public:
 
@@ -29,6 +39,7 @@ public:
   MatND rhist;
   Mat mask;
   Mat rhsv;
+  int classe;
 
   Objeto(Mat imagem, Rect r) {
     cvtColor(imagem(r), rhsv, CV_BGR2HSV);
@@ -42,6 +53,23 @@ public:
     normalize(rhist,rhist,0,255,NORM_MINMAX, -1, Mat() );
 
     wind = r;
+    int _classe = -1;
+    double maior = -1;
+
+    for (int j = 0; j < (int) modelos.size(); j++) {
+      double resultado = compareHist(rhist, modelos[j], CV_COMP_CORREL);
+      if (resultado >= 0.8 && resultado >= maior) {
+        _classe = j;
+        break;
+      }
+    }
+
+    if (_classe == -1) {
+      modelos.push_back(rhist);
+      _classe = modelos.size() - 1;
+    }
+
+    classe = _classe;
   }
 
   int track(Mat &crop, Mat &image) {
@@ -53,11 +81,14 @@ public:
 	    // converte pra HSV
 	    cvtColor(crop,fhsv,CV_BGR2HSV);
 	    // calcula back projeção
-	    calcBackProject(&fhsv,1,channels,rhist,fbproj,ranges,1,true);
+	    calcBackProject(&fhsv,1,channels,rhist,fbproj,ranges);
 
 	    // elimina valores que não batem com o objeto
-	    threshold(fbproj, fbthr, 200, 1,CV_THRESH_TOZERO);
-	    normalize(fbthr,fbthr,0,255,NORM_MINMAX, -1, Mat() );
+	    threshold(fbproj, fbthr, 60, 255,CV_THRESH_BINARY_INV);
+	    normalize(fbthr,fbthr,0,255,NORM_MINMAX);
+
+      // imshow("video", fbthr);
+      // waitKey(1000);
 
 	    // Executa camshift
 	    // 5 iterações, precisão 0.1
@@ -67,7 +98,7 @@ public:
 	    Point2f vertices[4];
 	    rect.points(vertices);
 	    for (int i = 0; i < 4; i++) {
-	      line(image, vertices[i], vertices[(i+1)%4], Scalar(0,255,0));
+	      line(image, vertices[i], vertices[(i+1)%4], cores[classe]);
 	    }
 
       return 1;
@@ -176,237 +207,229 @@ MatND calculaHistograma(Mat &img)
 }
 
 int main(int argc, char *argv[]) {
+  // verifica se vai pegar video de arquivo ou câmera
+  bool stream = false;
 
- // // verifica se vai pegar video de arquivo ou câmera
- // bool stream = false;
+  if (argc < 2)
+  {
+      stream = true;
+  }
 
- //  if (argc < 2)
- //  {
- //      stream = true;
- //  }
+  VideoCapture *cap;
 
- //  VideoCapture *cap;
+  if (stream) {
+    cap = new VideoCapture(1);
+  } else {
+    cap = new VideoCapture(argv[1]);
+  }
 
- //  if (stream) {
- //    cap = new VideoCapture(1);
- //  } else {
- //    cap = new VideoCapture(argv[1]);
- //  }
+  if(!cap->isOpened())
+      return -1;
 
- //  if(!cap->isOpened())
- //      return -1;
+  Mat frame;
 
- //  Mat frame;
-
- //  // Cria subtração de background por MOG2
- //  Ptr< BackgroundSubtractorMOG2> mog2 = createBackgroundSubtractorMOG2(500,60,true);
- //  Mat mascara_background;
- //  Mat binaryImg;
-
- //  mog2->setBackgroundRatio(0.01);
-
- //  // pega X frames para estabilizar background
- //  for (int i = 0; i < 80; i++) {
- //    *cap >> frame;
- //    mog2->apply(frame, mascara_background);
- //  }
-
- //  img = frame.clone();
- //  namedWindow("video", WINDOW_AUTOSIZE);
-
- //  // matriz de morfologia
- //  Mat elemento = getStructuringElement(MORPH_RECT, Size(3, 1), Point(1,0) );
-
- //  pegaROI();
-
- //  int contador = 0;
-
- //  vector<Objeto> objetos;
-
- //  while (true) {
-
- //    *cap >> frame;
- //    if(frame.empty()) {
- //      break;
- //    }
-
- //    // remove sombras
- //    threshold(mascara_background, binaryImg, 50, 255, CV_THRESH_BINARY);
-
- //    Mat binOrig = binaryImg.clone();
-
- //    // aplica frame ao background
- //    mog2->apply(frame, mascara_background);
-
- //    Mat ContourImg = binaryImg.clone();
-
- //    // pega contornos
- //    vector< vector<Point> > contornos;
- //    findContours(ContourImg, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
-
- //    // Cria uma imagem preta, pintando os contornos de branco
- //    Mat mask = Mat::zeros(ContourImg.rows, ContourImg.cols, CV_8UC3);
- //    drawContours(mask, contornos, -1, Scalar(255), CV_FILLED);
-
- //    // cria uma nova imagem, sobrepondo o frame com a máscara
- //    // assim pinta somente os objetos, num fundo branco
- //    Mat crop(frame.rows, frame.cols, frame.type());
- //    crop.setTo(Scalar(255,255,255));
- //    frame.copyTo(crop, mask);
-
-
- //    for (int i = 0; i < (int) contornos.size(); i++) {
- //      Rect bb = boundingRect(contornos[i]);
-
- //      // objeto muito pequeno, cai fora
- //      if (bb.width <= 10 || bb.height <= 10)
- //        continue;
-
- //      // verifica se objeto já foi detectado em um frame anterior
- //      // por exemplo se a leitura e muito rapida
- //      bool achou = false;
- //      for (int j = 0; j < (int) objetos.size(); j++) {
- //        Rect intersecao = bb & objetos[j].wind;
-
- //        if (intersecao.height > 8 || intersecao.width > 5) {
- //          achou = true;
- //        }
- //      }
-
- //      if (achou) {
- //        continue;
- //      }
-
- //      // se não encontrar, cria um novo objeto
- //      if (bb.y >= roi.y && bb.y <= roi.y + 10) {
- //        Objeto o(crop, bb);
- //        objetos.push_back(o);
- //      }
- //    }
-
- //    // percorre objetos, chamando Camshift
- //    vector<Objeto> novos_objetos;
- //    for (int i = 0; i < (int) objetos.size(); i++) {
- //      int result = objetos[i].track(crop, frame);
-
- //      if (result == -1) continue;
-
- //      // se o objeto passou da parte de baixo do quadrado
- //      // conta o objeto e remove-o
- //      if (objetos[i].wind.y > roi.y + roi.height + 5) {
- //        contador += 1;
- //        continue;
- //      }
-
- //      // se a janela do camshift ficar muito grande, remove objeto
- //      if (objetos[i].wind.height > 90 || objetos[i].wind.width > 120)
- //      {
- //        continue;
- //      }
-
- //      // se objeto deve continuar, coloca-o em um novo vetor
- //      novos_objetos.push_back(objetos[i]);
- //    }
-
- //    objetos = novos_objetos;
-
- //    // mostra contagem na tela
- //    string text = "Contador: " + to_string(contador);
- //    int fontFace = FONT_HERSHEY_SIMPLEX;
- //    double fontScale = 0.7;
- //    int thickness = 2;
- //    cv::Point textOrg(10, 30);
-
- //    putText(frame, text, textOrg, fontFace, fontScale, Scalar(0, 0, 255), thickness,8);
-
- //    imshow("video", frame);
-
- //    if (waitKey(10) == 27) {
- //      break;
- //    }
- //  }
-
- //  cout << "Contou " << contador << " objetos no total" << endl;
-
-
-  Mat imagem = imread("objetos.png");
-  Mat background = imread("background.jpg");
-
-  // cvtColor(imagem, imagem, CV_BGR2HSV);
-  // cvtColor(background, background, CV_BGR2HSV);
-
+  // Cria subtração de background por MOG2
   Ptr< BackgroundSubtractorMOG2> mog2 = createBackgroundSubtractorMOG2(500,60,true);
-  Mat mascara_background(background.rows, background.cols, background.type());
+  Mat mascara_background;
   Mat binaryImg;
 
-  mog2->setBackgroundRatio(0.9);
+  mog2->setBackgroundRatio(0.01);
 
-  mog2->apply(background, mascara_background);
+  // pega X frames para estabilizar background
+  for (int i = 0; i < 80; i++) {
+    *cap >> frame;
+    mog2->apply(frame, mascara_background);
+  }
 
+  img = frame.clone();
+  namedWindow("video", WINDOW_AUTOSIZE);
 
-  mog2->setBackgroundRatio(0.001);
+  // matriz de morfologia
+  Mat elemento = getStructuringElement(MORPH_RECT, Size(3, 1), Point(1,0) );
 
-  mog2->apply(imagem, mascara_background);
+  pegaROI();
 
-  threshold(mascara_background, binaryImg, 50, 255, CV_THRESH_BINARY);
+  int contador = 0;
 
-  Mat binOrig = binaryImg.clone();
-  Mat ContourImg;
+  vector<Objeto> objetos;
 
-  vector< vector<Point> > contornos;
-  findContours(binaryImg, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+  while (true) {
 
-  Mat mask = Mat::zeros(binOrig.rows, binOrig.cols, CV_8UC1);
-  drawContours(mask, contornos, -1, Scalar(255, 255, 255), CV_FILLED);
-
-  Mat crop(imagem.rows, imagem.cols, imagem.type());
-  crop.setTo(Scalar(255,255,255));
-  imagem.copyTo(crop, mask);
-
-  vector<MatND> modelos;
-  Scalar cores[] = {
-    Scalar(255, 0, 0),
-    Scalar(255, 255, 0),
-    Scalar(255, 0, 255),
-    Scalar(0, 255, 0),
-    Scalar(0, 0, 255),
-    Scalar(0, 255, 255)
-  };
-
-  for (int i = 0; i < (int) contornos.size(); i++) {
-    Rect bb = boundingRect(contornos[i]);
-
-    if (bb.height < 20 || bb.width < 20) {
-      continue;
+    *cap >> frame;
+    if(frame.empty()) {
+      break;
     }
 
+    // aplica frame ao background
+    mog2->apply(frame, mascara_background);
 
-    Mat pedaco = crop(bb);
+    // remove sombras
+    threshold(mascara_background, binaryImg, 50, 255, CV_THRESH_BINARY);
+
+    Mat binOrig = binaryImg.clone();
 
 
-    MatND histograma = calculaHistograma(pedaco);
-    int classe = -1;
-    double maior = -1;
 
-    for (int j = 0; j < (int) modelos.size(); j++) {
-      double resultado = compareHist(histograma, modelos[j], CV_COMP_CORREL);
-      if (resultado >= 0.9 && resultado >= maior) {
-        classe = j;
-        break;
+    Mat ContourImg = binaryImg.clone();
+
+    // pega contornos
+    vector< vector<Point> > contornos;
+    findContours(ContourImg, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+
+    // Cria uma imagem preta, pintando os contornos de branco
+    Mat mask = Mat::zeros(ContourImg.rows, ContourImg.cols, CV_8UC1);
+    drawContours(mask, contornos, -1, Scalar(255, 255, 255), CV_FILLED);
+
+    // cria uma nova imagem, sobrepondo o frame com a máscara
+    // assim pinta somente os objetos, num fundo branco
+    Mat crop(frame.rows, frame.cols, frame.type());
+    crop.setTo(Scalar(0,0,0));
+    frame.copyTo(crop, mask);
+
+
+    for (int i = 0; i < (int) contornos.size(); i++) {
+      Rect bb = boundingRect(contornos[i]);
+
+      // objeto muito pequeno, cai fora
+      if (bb.width <= 10 || bb.height <= 10)
+        continue;
+
+      // verifica se objeto já foi detectado em um frame anterior
+      // por exemplo se a leitura e muito rapida
+      bool achou = false;
+      for (int j = 0; j < (int) objetos.size(); j++) {
+        Rect intersecao = bb & objetos[j].wind;
+
+        if (intersecao.height > 8 || intersecao.width > 5) {
+          achou = true;
+        }
+      }
+
+      if (achou) {
+        continue;
+      }
+
+      // se não encontrar, cria um novo objeto
+      if (bb.y >= roi.y && bb.y <= roi.y + 10) {
+        Objeto o(crop, bb);
+        objetos.push_back(o);
       }
     }
 
-    if (classe == -1) {
-      modelos.push_back(histograma);
-      rectangle(imagem, bb, cores[modelos.size() - 1], 2);
-    } else {
-      rectangle(imagem, bb, cores[classe], 2);
+    // percorre objetos, chamando Camshift
+    vector<Objeto> novos_objetos;
+    for (int i = 0; i < (int) objetos.size(); i++) {
+      int result = objetos[i].track(crop, frame);
+
+      if (result == -1) continue;
+
+      // se o objeto passou da parte de baixo do quadrado
+      // conta o objeto e remove-o
+      if (objetos[i].wind.y > roi.y + roi.height + 5) {
+        contador += 1;
+        continue;
+      }
+
+      // se a janela do camshift ficar muito grande, remove objeto
+      if (objetos[i].wind.height > 90 || objetos[i].wind.width > 120)
+      {
+        continue;
+      }
+
+      // se objeto deve continuar, coloca-o em um novo vetor
+      novos_objetos.push_back(objetos[i]);
+    }
+
+    objetos = novos_objetos;
+
+    // mostra contagem na tela
+    string text = "Contador: " + to_string(contador);
+    int fontFace = FONT_HERSHEY_SIMPLEX;
+    double fontScale = 0.7;
+    int thickness = 2;
+    cv::Point textOrg(10, 30);
+
+    putText(frame, text, textOrg, fontFace, fontScale, Scalar(0, 0, 255), thickness,8);
+
+    imshow("video", frame);
+
+    if (waitKey(10) == 27) {
+      break;
     }
   }
 
-  namedWindow("img", WINDOW_AUTOSIZE);
-  imshow("img", imagem);
-  waitKey(10000);
+  cout << "Contou " << contador << " objetos no total" << endl;
+
+
+  // Mat imagem = imread("objetos.png");
+  // Mat background = imread("background.jpg");
+
+  // // cvtColor(imagem, imagem, CV_BGR2HSV);
+  // // cvtColor(background, background, CV_BGR2HSV);
+
+  // Ptr< BackgroundSubtractorMOG2> mog2 = createBackgroundSubtractorMOG2(500,60,true);
+  // Mat mascara_background(background.rows, background.cols, background.type());
+  // Mat binaryImg;
+
+  // mog2->setBackgroundRatio(0.9);
+
+  // mog2->apply(background, mascara_background);
+
+
+  // mog2->setBackgroundRatio(0.001);
+
+  // mog2->apply(imagem, mascara_background);
+
+  // threshold(mascara_background, binaryImg, 50, 255, CV_THRESH_BINARY);
+
+  // Mat binOrig = binaryImg.clone();
+  // Mat ContourImg;
+
+  // vector< vector<Point> > contornos;
+  // findContours(binaryImg, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+
+  // Mat mask = Mat::zeros(binOrig.rows, binOrig.cols, CV_8UC1);
+  // drawContours(mask, contornos, -1, Scalar(255, 255, 255), CV_FILLED);
+
+  // Mat crop(imagem.rows, imagem.cols, imagem.type());
+  // crop.setTo(Scalar(255,255,255));
+  // imagem.copyTo(crop, mask);
+
+
+  // for (int i = 0; i < (int) contornos.size(); i++) {
+  //   Rect bb = boundingRect(contornos[i]);
+
+  //   if (bb.height < 20 || bb.width < 20) {
+  //     continue;
+  //   }
+
+
+  //   Mat pedaco = crop(bb);
+
+
+  //   MatND histograma = calculaHistograma(pedaco);
+  //   int classe = -1;
+  //   double maior = -1;
+
+  //   for (int j = 0; j < (int) modelos.size(); j++) {
+  //     double resultado = compareHist(histograma, modelos[j], CV_COMP_CORREL);
+  //     if (resultado >= 0.9 && resultado >= maior) {
+  //       classe = j;
+  //       break;
+  //     }
+  //   }
+
+  //   if (classe == -1) {
+  //     modelos.push_back(histograma);
+  //     rectangle(imagem, bb, cores[modelos.size() - 1], 2);
+  //   } else {
+  //     rectangle(imagem, bb, cores[classe], 2);
+  //   }
+  // }
+
+  // namedWindow("img", WINDOW_AUTOSIZE);
+  // imshow("img", imagem);
+  // waitKey(10000);
 
   return 0;
 }

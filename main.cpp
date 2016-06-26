@@ -250,116 +250,146 @@ int main(int argc, char *argv[]) {
 
   pegaROI();
 
-  int contador = 0;
+  vector<int> contadores(10, 0);
 
   vector<Objeto> objetos;
+  bool pausar = false;
+
+  double hframe = frame.size().height;
+  double wframe = frame.size().width;
+
+  Point p1(0, roi.y);
+  Point p2(wframe, roi.y);
+  Point p3(0, roi.y + roi.height + 5);
+  Point p4(wframe, roi.y + roi.height + 5);
 
   while (true) {
+    if (pausar == false)
+    {
+      *cap >> frame;
+      if(frame.empty()) {
+        break;
+      }
 
-    *cap >> frame;
-    if(frame.empty()) {
-      break;
-    }
+      // aplica frame ao background
+      mog2->apply(frame, mascara_background);
 
-    // aplica frame ao background
-    mog2->apply(frame, mascara_background);
+      // remove sombras
+      threshold(mascara_background, binaryImg, 50, 255, CV_THRESH_BINARY);
 
-    // remove sombras
-    threshold(mascara_background, binaryImg, 50, 255, CV_THRESH_BINARY);
-
-    Mat binOrig = binaryImg.clone();
-
-
-
-    Mat ContourImg = binaryImg.clone();
-
-    // pega contornos
-    vector< vector<Point> > contornos;
-    findContours(ContourImg, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
-
-    // Cria uma imagem preta, pintando os contornos de branco
-    Mat mask = Mat::zeros(ContourImg.rows, ContourImg.cols, CV_8UC1);
-    drawContours(mask, contornos, -1, Scalar(255, 255, 255), CV_FILLED);
-
-    // cria uma nova imagem, sobrepondo o frame com a máscara
-    // assim pinta somente os objetos, num fundo branco
-    Mat crop(frame.rows, frame.cols, frame.type());
-    crop.setTo(Scalar(0,0,0));
-    frame.copyTo(crop, mask);
+      Mat binOrig = binaryImg.clone();
 
 
-    for (int i = 0; i < (int) contornos.size(); i++) {
-      Rect bb = boundingRect(contornos[i]);
 
-      // objeto muito pequeno, cai fora
-      if (bb.width <= 10 || bb.height <= 10)
-        continue;
+      Mat ContourImg = binaryImg.clone();
 
-      // verifica se objeto já foi detectado em um frame anterior
-      // por exemplo se a leitura e muito rapida
-      bool achou = false;
-      for (int j = 0; j < (int) objetos.size(); j++) {
-        Rect intersecao = bb & objetos[j].wind;
+      // pega contornos
+      vector< vector<Point> > contornos;
+      findContours(ContourImg, contornos, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
 
-        if (intersecao.height > 8 || intersecao.width > 5) {
-          achou = true;
+      // Cria uma imagem preta, pintando os contornos de branco
+      Mat mask = Mat::zeros(ContourImg.rows, ContourImg.cols, CV_8UC1);
+      drawContours(mask, contornos, -1, Scalar(255, 255, 255), CV_FILLED);
+
+      // cria uma nova imagem, sobrepondo o frame com a máscara
+      // assim pinta somente os objetos, num fundo branco
+      Mat crop(frame.rows, frame.cols, frame.type());
+      crop.setTo(Scalar(0,0,0));
+      frame.copyTo(crop, mask);
+
+
+      for (int i = 0; i < (int) contornos.size(); i++) {
+        Rect bb = boundingRect(contornos[i]);
+
+        // objeto muito pequeno, cai fora
+        if (bb.width <= 10 || bb.height <= 10)
+          continue;
+
+        // verifica se objeto já foi detectado em um frame anterior
+        // por exemplo se a leitura e muito rapida
+        bool achou = false;
+        for (int j = 0; j < (int) objetos.size(); j++) {
+          Rect intersecao = bb & objetos[j].wind;
+
+          if (intersecao.height > 8 || intersecao.width > 5) {
+            achou = true;
+          }
+        }
+
+        if (achou) {
+          continue;
+        }
+
+        // se não encontrar, cria um novo objeto
+        if (bb.y >= roi.y && bb.y <= roi.y + 10) {
+          Objeto o(crop, bb);
+          objetos.push_back(o);
         }
       }
 
-      if (achou) {
-        continue;
+      // percorre objetos, chamando Camshift
+      vector<Objeto> novos_objetos;
+      for (int i = 0; i < (int) objetos.size(); i++) {
+        int result = objetos[i].track(contornos, frame);
+
+        if (result == -1) continue;
+
+        // se o objeto passou da parte de baixo do quadrado
+        // conta o objeto e remove-o
+        if (objetos[i].wind.y > roi.y + roi.height + 5) {
+          contadores[objetos[i].classe] += 1;
+          continue;
+        }
+
+        // se a janela do camshift ficar muito grande, remove objeto
+        if (objetos[i].wind.height > 90 || objetos[i].wind.width > 120)
+        {
+          continue;
+        }
+
+        // se objeto deve continuar, coloca-o em um novo vetor
+        novos_objetos.push_back(objetos[i]);
       }
 
-      // se não encontrar, cria um novo objeto
-      if (bb.y >= roi.y && bb.y <= roi.y + 10) {
-        Objeto o(crop, bb);
-        objetos.push_back(o);
-      }
-    }
+      objetos = novos_objetos;
 
-    // percorre objetos, chamando Camshift
-    vector<Objeto> novos_objetos;
-    for (int i = 0; i < (int) objetos.size(); i++) {
-      int result = objetos[i].track(contornos, frame);
-
-      if (result == -1) continue;
-
-      // se o objeto passou da parte de baixo do quadrado
-      // conta o objeto e remove-o
-      if (objetos[i].wind.y > roi.y + roi.height + 5) {
-        contador += 1;
-        continue;
-      }
-
-      // se a janela do camshift ficar muito grande, remove objeto
-      if (objetos[i].wind.height > 90 || objetos[i].wind.width > 120)
+      int offset = 1;
+      for (int i = 0; i < (int) contadores.size(); i++)
       {
-        continue;
+        if (contadores[i] < 1) {
+          continue;
+        }
+
+        // mostra contagem na tela
+        string text = "Contador: " + to_string(contadores[i]);
+        int fontFace = FONT_HERSHEY_SIMPLEX;
+        double fontScale = 0.7;
+        int thickness = 2;
+        cv::Point textOrg(10, 30 * offset);
+
+        putText(frame, text, textOrg, fontFace, fontScale, cores[i], thickness,8);
+        offset++;
       }
 
-      // se objeto deve continuar, coloca-o em um novo vetor
-      novos_objetos.push_back(objetos[i]);
+      line(frame, p1, p2, Scalar(0, 0, 255), 3);
+      line(frame, p3, p4, Scalar(0, 0, 255), 3);
+
+      imshow("video", frame);
     }
 
-    objetos = novos_objetos;
+    int key =  waitKey(50);
 
-    // mostra contagem na tela
-    string text = "Contador: " + to_string(contador);
-    int fontFace = FONT_HERSHEY_SIMPLEX;
-    double fontScale = 0.7;
-    int thickness = 2;
-    cv::Point textOrg(10, 30);
-
-    putText(frame, text, textOrg, fontFace, fontScale, Scalar(0, 0, 255), thickness,8);
-
-    imshow("video", frame);
-
-    if (waitKey(10) == 27) {
+    if (key == 27) 
+    {
       break;
+    }
+    else if (key == 112)
+    {
+      pausar = !pausar;
     }
   }
 
-  cout << "Contou " << contador << " objetos no total" << endl;
+  // cout << "Contou " << contador << " objetos no total" << endl;
 
   return 0;
 }

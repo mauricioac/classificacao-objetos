@@ -14,15 +14,70 @@
 #include <stack>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 using namespace std;
 using namespace cv;
 
-vector<MatND> modelos;
+class Modelo
+{
+public:  
+  MatND histograma;
+  float area;
+  float hull_area;
+
+  float testaArea(MatND h, float a)
+  {
+    double res_histograma = compareHist(h, histograma, CV_COMP_CORREL);
+    
+    float res_area = 0.0f;
+
+    if (a > area)
+    {
+      res_area = ((100.0f * area) / a);
+    }
+    else
+    {
+      res_area = ((100.0f * a) / area);
+    }
+
+    res_area /= 100.0f;
+
+    // cout << res_area << " " << res_histograma << endl;
+    return res_area;
+  }
+
+  float testaHullArea(vector<Point> cnt, float h)
+  {
+    float res_area = 0.0f;
+
+    if (h > hull_area)
+    {
+      res_area = ((100.0f * hull_area) / h);
+    }
+    else
+    {
+      res_area = ((100.0f * h) / hull_area);
+    }
+    
+    cout<<" res_area "<<res_area<<endl;
+    res_area /= 100.0f;
+    // float solidity = a/hull_area;
+    // cout<<"solidity "<<solidity<<endl;
+
+    return res_area;
+  }
+};
+
+vector<Modelo> modelos;
 Scalar cores[] = {
   Scalar(255, 0, 0),
   Scalar(255, 255, 0),
   Scalar(255, 0, 255),
   Scalar(0, 255, 0),
+  Scalar(0, 0, 255),
+  Scalar(0, 0, 128),
+  Scalar(0, 128, 128),
+  Scalar(128, 0, 255),
   Scalar(0, 0, 255),
   Scalar(0, 255, 255)
 };
@@ -45,9 +100,16 @@ public:
   Mat mask;
   Mat rhsv;
   int classe;
+  vector<Point> contorno;
 
-  Objeto(Mat imagem, Rect r) {
+  Objeto(Mat imagem, Rect r, vector<Point> c) {
     cvtColor(imagem(r), rhsv, CV_BGR2HSV);
+    contorno = c;
+    float area = contourArea(c);
+
+    vector< Point > _hull;
+    convexHull( Mat(c), _hull, false );
+    float _hull_area = contourArea(_hull);
 
     int rhistsz = 180;    // bin size
     float range[] = { 0, 180};
@@ -62,16 +124,22 @@ public:
     double maior = -1;
 
     for (int j = 0; j < (int) modelos.size(); j++) {
-      double resultado = compareHist(rhist, modelos[j], CV_COMP_CORREL);
-      if (resultado >= 0.8 && resultado >= maior) {
+      double resultado = modelos[j].testaArea(rhist,area);
+      double resultado_hull = modelos[j].testaHullArea(contorno, _hull_area);
+
+      if (resultado_hull >= 0.6 && resultado >= 0.6 && resultado >= maior) {
         _classe = j;
-        break;
+        // break;
       }
     }
 
     if (_classe == -1) {
-      modelos.push_back(rhist);
-      _classe = modelos.size() - 1;
+      Modelo m;
+      m.area = area;
+      m.histograma = rhist;
+      m.hull_area = _hull_area;
+      modelos.push_back(m);
+      _classe = (int)modelos.size() - 1;
     }
 
     classe = _classe;
@@ -246,7 +314,7 @@ int main(int argc, char *argv[]) {
   namedWindow("video", WINDOW_AUTOSIZE);
 
   // matriz de morfologia
-  Mat elemento = getStructuringElement(MORPH_RECT, Size(3, 1), Point(1,0) );
+  Mat elemento = getStructuringElement(MORPH_RECT, Size(3, 3), Point(1,1) );
 
   pegaROI();
 
@@ -279,7 +347,11 @@ int main(int argc, char *argv[]) {
 
       Mat binOrig = binaryImg.clone();
 
-
+      morphologyEx(binaryImg, binaryImg, CV_MOP_ERODE, elemento);
+      for (int t = 0; t < 10; t++)
+      {
+        morphologyEx(binaryImg, binaryImg, CV_MOP_OPEN, elemento);
+      }
 
       Mat ContourImg = binaryImg.clone();
 
@@ -302,7 +374,7 @@ int main(int argc, char *argv[]) {
         Rect bb = boundingRect(contornos[i]);
 
         // objeto muito pequeno, cai fora
-        if (bb.width <= 10 || bb.height <= 10)
+        if (bb.width <= 10 || bb.height <= 5)
           continue;
 
         // verifica se objeto já foi detectado em um frame anterior
@@ -321,8 +393,8 @@ int main(int argc, char *argv[]) {
         }
 
         // se não encontrar, cria um novo objeto
-        if (bb.y >= roi.y && bb.y <= roi.y + 10) {
-          Objeto o(crop, bb);
+        if (bb.y >= roi.y && bb.y <= roi.y + 25) {
+          Objeto o(crop, bb, contornos[i]);
           objetos.push_back(o);
         }
       }
@@ -377,7 +449,7 @@ int main(int argc, char *argv[]) {
       imshow("video", frame);
     }
 
-    int key =  waitKey(50);
+    int key =  waitKey(10);
 
     if (key == 27) 
     {
@@ -389,7 +461,14 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // cout << "Contou " << contador << " objetos no total" << endl;
+  for (int i = 0; i < (int) contadores.size(); i++)
+  {
+    if (contadores[i] < 1) {
+      continue;
+    }
+
+    cout << "Contador " << i << ": " << contadores[i] << endl;
+  }
 
   return 0;
 }

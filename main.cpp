@@ -236,8 +236,8 @@ public:
       double _diametro = modelos[j].testaDiamentroEquivalente(_equi_diametro);
       double _aspect = modelos[j].testaAspectRatio(taxa);
 
-      double similaridade = 0.1f*_histograma + 0.2f*_area + 0.3f*_hull + 
-                            0.1f*_aspect + 0.1f*_solidity + 0.3f*_diametro;
+      double similaridade = 0.3f*_histograma + 0.2f*_area + 0.35f*_hull + 
+                            0.05f*_aspect + 0.05f*_solidity + 0.15f*_diametro;
       // cout<<"similaridade = "<<similaridade<<endl;
       
       if (similaridade > 0.8 && similaridade > maior) 

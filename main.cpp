@@ -29,6 +29,7 @@ public:
   float perimetro;
   float solidity;
   float equi_diametro;
+  float aspect_ratio;
 
   float testaArea(MatND h, float a)
   {
@@ -86,9 +87,27 @@ public:
     // cout<<" res_area "<<res_area<<endl;
     res_solidity /= 100.0f;
     
-    cout<<"solidity "<<solidity<<endl;
+    // cout<<"solidity "<<solidity<<endl;
 
     return res_solidity;
+  }
+
+  float testaAspectRatio(float r)
+  {
+    float res_aspect_ratio = 0.0f;
+
+    if (r > aspect_ratio)
+    {
+      res_aspect_ratio = ((100.0f * aspect_ratio) / r);
+    }
+    else
+    {
+      res_aspect_ratio = ((100.0f * r) / aspect_ratio);
+    }
+
+    res_aspect_ratio /= 100.0f;
+  
+    return res_aspect_ratio;
   }
 
   float testaDiamentroEquivalente(float ed)
@@ -107,7 +126,7 @@ public:
     // cout<<" res_area "<<res_area<<endl;
     res_eq_diametro /= 100.0f;
     
-    cout<<"equi_diametro "<<equi_diametro<<endl;
+    // cout<<"equi_diametro "<<res_eq_diametro<<endl;
 
     return res_eq_diametro;
   }
@@ -179,15 +198,18 @@ public:
     cvtColor(imagem(r), rhsv, CV_BGR2HSV);
     contorno = c;
     float area = contourArea(c);
+    Rect bb = boundingRect(c);
 
     vector< Point > _hull;
-    convexHull( Mat(c), _hull, false );
+    convexHull( Mat(contorno), _hull, false );
     float _hull_area = contourArea(_hull);
 
     double _area_perimetro = arcLength(c, true);
 
     double _sol = area/_hull_area;
     double _equi_diametro = sqrt(4*area/pi);
+
+    double taxa = (double)bb.width/(double)bb.height;
 
     int rhistsz = 180;    // bin size
     float range[] = { 0, 180};
@@ -212,15 +234,17 @@ public:
       // double _perimetro = modelos[j].testaPerimetro(_area_perimetro);
       double _solidity = modelos[j].testaSolidity(_sol);
       double _diametro = modelos[j].testaDiamentroEquivalente(_equi_diametro);
-      
-      double similaridade = 0.1f*_histograma + 0.2f*_area + 0.3f*_hull + 0.2f*_solidity + 0.2f*_diametro;
+      double _aspect = modelos[j].testaAspectRatio(taxa);
+
+      double similaridade = 0.1f*_histograma + 0.2f*_area + 0.3f*_hull + 
+                            0.1f*_aspect + 0.1f*_solidity + 0.3f*_diametro;
       // cout<<"similaridade = "<<similaridade<<endl;
       
       if (similaridade > 0.8 && similaridade > maior) 
       {
         _classe = j;
         maior = similaridade;
-        break;
+        // break;
       }
     }
 
@@ -233,6 +257,7 @@ public:
       m.perimetro = _area_perimetro;
       m.solidity = _sol;
       m.equi_diametro = _equi_diametro;
+      m.aspect_ratio = taxa;
 
       modelos.push_back(m);
 

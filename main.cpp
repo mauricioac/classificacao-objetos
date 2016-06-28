@@ -18,12 +18,17 @@
 using namespace std;
 using namespace cv;
 
+double pi = 3.1415926535897;
+
 class Modelo
 {
 public:  
   MatND histograma;
   float area;
   float hull_area;
+  float perimetro;
+  float solidity;
+  float equi_diametro;
 
   float testaArea(MatND h, float a)
   {
@@ -65,6 +70,68 @@ public:
     return res_area;
   }
 
+  float testaSolidity(float s)
+  {
+    float res_solidity = 0.0f;
+
+    if (s > solidity)
+    {
+      res_solidity = ((100.0f * solidity) / s);
+    }
+    else
+    {
+      res_solidity = ((100.0f * s) / solidity);
+    }
+    
+    // cout<<" res_area "<<res_area<<endl;
+    res_solidity /= 100.0f;
+    
+    cout<<"solidity "<<solidity<<endl;
+
+    return res_solidity;
+  }
+
+  float testaDiamentroEquivalente(float ed)
+  {
+    float res_eq_diametro = 0.0f;
+
+    if (ed > equi_diametro)
+    {
+      res_eq_diametro = ((100.0f * equi_diametro) / ed);
+    }
+    else
+    {
+      res_eq_diametro = ((100.0f * ed) / equi_diametro);
+    }
+    
+    // cout<<" res_area "<<res_area<<endl;
+    res_eq_diametro /= 100.0f;
+    
+    cout<<"equi_diametro "<<equi_diametro<<endl;
+
+    return res_eq_diametro;
+  }
+
+
+  float testaPerimetro(float p)
+  {
+    float res_perimetro = 0.0f;
+
+    if (p > perimetro)
+    {
+      res_perimetro = ((100.0f * perimetro) / p);
+    }
+    else
+    {
+      res_perimetro = ((100.0f * p) / perimetro);
+    }
+    
+    cout<<" res_perimetro "<<res_perimetro<<endl;
+    res_perimetro /= 100.0f;
+   
+    return res_perimetro;
+  }
+
   float testaHistograma(MatND h)
   {
     float res_histograma = compareHist(h, histograma, CV_COMP_CORREL);
@@ -83,7 +150,7 @@ Scalar cores[] = {
   Scalar(0, 0, 128),
   Scalar(0, 128, 128),
   Scalar(128, 0, 255),
-  Scalar(0, 0, 255),
+  Scalar(0,250, 255),
   Scalar(0, 255, 255)
 };
 
@@ -107,7 +174,8 @@ public:
   int classe;
   vector<Point> contorno;
 
-  Objeto(Mat imagem, Rect r, vector<Point> c) {
+  Objeto(Mat imagem, Rect r, vector<Point> c) 
+  {
     cvtColor(imagem(r), rhsv, CV_BGR2HSV);
     contorno = c;
     float area = contourArea(c);
@@ -115,6 +183,11 @@ public:
     vector< Point > _hull;
     convexHull( Mat(c), _hull, false );
     float _hull_area = contourArea(_hull);
+
+    double _area_perimetro = arcLength(c, true);
+
+    double _sol = area/_hull_area;
+    double _equi_diametro = sqrt(4*area/pi);
 
     int rhistsz = 180;    // bin size
     float range[] = { 0, 180};
@@ -128,29 +201,41 @@ public:
     int _classe = -1;
     double maior = -1;
 
-    for (int j = 0; j < (int) modelos.size(); j++) {
+    for (int j = 0; j < (int)modelos.size(); j++) {
       
+      /**
+       * Obtêm a similaridade dos objetos
+       */
       double _area = modelos[j].testaArea(rhist,area);
       double _hull = modelos[j].testaHullArea(_hull_area);
       double _histograma = modelos[j].testaHistograma(rhist);
+      // double _perimetro = modelos[j].testaPerimetro(_area_perimetro);
+      double _solidity = modelos[j].testaSolidity(_sol);
+      double _diametro = modelos[j].testaDiamentroEquivalente(_equi_diametro);
       
-      double similaridade = 0.2f*_histograma + 0.3f*_area + 0.5f*_hull;
-      cout<<"similaridade = "<<similaridade<<endl;
+      double similaridade = 0.1f*_histograma + 0.2f*_area + 0.3f*_hull + 0.2f*_solidity + 0.2f*_diametro;
+      // cout<<"similaridade = "<<similaridade<<endl;
       
-      if (similaridade > 0.75 && similaridade > maior) 
+      if (similaridade > 0.8 && similaridade > maior) 
       {
         _classe = j;
         maior = similaridade;
-        // break;
+        break;
       }
     }
 
-    if (_classe == -1) {
+    if (_classe == -1) 
+    {
       Modelo m;
       m.area = area;
       m.histograma = rhist;
       m.hull_area = _hull_area;
+      m.perimetro = _area_perimetro;
+      m.solidity = _sol;
+      m.equi_diametro = _equi_diametro;
+
       modelos.push_back(m);
+
       _classe = (int)modelos.size() - 1;
     }
 
@@ -362,7 +447,8 @@ int main(int argc, char *argv[]) {
       Mat binOrig = binaryImg.clone();
 
       morphologyEx(binaryImg, binaryImg, CV_MOP_ERODE, elemento);
-      // for (int t = 0; t < 10; t++)
+      morphologyEx(binaryImg, binaryImg, CV_MOP_ERODE, elemento);
+      // for (int t = 0; t < 1; t++)
       // {
       //   morphologyEx(binaryImg, binaryImg, CV_MOP_OPEN, elemento);
       // }
@@ -389,7 +475,7 @@ int main(int argc, char *argv[]) {
         Rect bb = boundingRect(contornos[i]);
 
         // objeto muito pequeno, cai fora
-        if (bb.width <= 10 || bb.height <= 10)
+        if (bb.width <= 5 || bb.height <= 5)
         {
           continue;
         }
@@ -484,15 +570,18 @@ int main(int argc, char *argv[]) {
       pausar = !pausar;
     }
   }
-
+  int total = 0;
   for (int i = 0; i < (int) contadores.size(); i++)
   {
     if (contadores[i] < 1) {
       continue;
     }
 
+    total = contadores[i] + total;
     cout << "Contador " << i << ": " << contadores[i] << endl;
   }
+
+  cout<<"Total = "<<total<<endl;
 
   return 0;
 }

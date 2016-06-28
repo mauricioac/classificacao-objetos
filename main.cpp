@@ -27,8 +27,6 @@ public:
 
   float testaArea(MatND h, float a)
   {
-    double res_histograma = compareHist(h, histograma, CV_COMP_CORREL);
-    
     float res_area = 0.0f;
 
     if (a > area)
@@ -46,7 +44,7 @@ public:
     return res_area;
   }
 
-  float testaHullArea(vector<Point> cnt, float h)
+  float testaHullArea(float h)
   {
     float res_area = 0.0f;
 
@@ -59,12 +57,19 @@ public:
       res_area = ((100.0f * h) / hull_area);
     }
     
-    cout<<" res_area "<<res_area<<endl;
+    // cout<<" res_area "<<res_area<<endl;
     res_area /= 100.0f;
     // float solidity = a/hull_area;
     // cout<<"solidity "<<solidity<<endl;
 
     return res_area;
+  }
+
+  float testaHistograma(MatND h)
+  {
+    float res_histograma = compareHist(h, histograma, CV_COMP_CORREL);
+    // cout<<" "<<res_histograma<<endl;
+    return res_histograma;
   }
 };
 
@@ -124,11 +129,18 @@ public:
     double maior = -1;
 
     for (int j = 0; j < (int) modelos.size(); j++) {
-      double resultado = modelos[j].testaArea(rhist,area);
-      double resultado_hull = modelos[j].testaHullArea(contorno, _hull_area);
-
-      if (resultado_hull >= 0.6 && resultado >= 0.6 && resultado >= maior) {
+      
+      double _area = modelos[j].testaArea(rhist,area);
+      double _hull = modelos[j].testaHullArea(_hull_area);
+      double _histograma = modelos[j].testaHistograma(rhist);
+      
+      double similaridade = 0.2f*_histograma + 0.3f*_area + 0.5f*_hull;
+      cout<<"similaridade = "<<similaridade<<endl;
+      
+      if (similaridade > 0.75 && similaridade > maior) 
+      {
         _classe = j;
+        maior = similaridade;
         // break;
       }
     }
@@ -318,6 +330,8 @@ int main(int argc, char *argv[]) {
 
   pegaROI();
 
+  cvNamedWindow( "Binario", CV_WINDOW_AUTOSIZE );
+
   vector<int> contadores(10, 0);
 
   vector<Objeto> objetos;
@@ -348,10 +362,10 @@ int main(int argc, char *argv[]) {
       Mat binOrig = binaryImg.clone();
 
       morphologyEx(binaryImg, binaryImg, CV_MOP_ERODE, elemento);
-      for (int t = 0; t < 10; t++)
-      {
-        morphologyEx(binaryImg, binaryImg, CV_MOP_OPEN, elemento);
-      }
+      // for (int t = 0; t < 10; t++)
+      // {
+      //   morphologyEx(binaryImg, binaryImg, CV_MOP_OPEN, elemento);
+      // }
 
       Mat ContourImg = binaryImg.clone();
 
@@ -370,25 +384,34 @@ int main(int argc, char *argv[]) {
       frame.copyTo(crop, mask);
 
 
-      for (int i = 0; i < (int) contornos.size(); i++) {
+      for (int i = 0; i < (int)contornos.size(); i++) 
+      {
         Rect bb = boundingRect(contornos[i]);
 
         // objeto muito pequeno, cai fora
-        if (bb.width <= 10 || bb.height <= 5)
+        if (bb.width <= 10 || bb.height <= 10)
+        {
           continue;
+        }
+        else if (bb.width >= 70 || bb.height >= 50)
+        {
+          continue;
+        }
 
         // verifica se objeto já foi detectado em um frame anterior
         // por exemplo se a leitura e muito rapida
         bool achou = false;
-        for (int j = 0; j < (int) objetos.size(); j++) {
+
+        for (int j = 0; j < (int)objetos.size(); j++) {
           Rect intersecao = bb & objetos[j].wind;
 
-          if (intersecao.height > 8 || intersecao.width > 5) {
+          if (intersecao.height > 15 || intersecao.width > 9) {
             achou = true;
           }
         }
 
-        if (achou) {
+        if (achou) 
+        {
           continue;
         }
 
@@ -414,7 +437,7 @@ int main(int argc, char *argv[]) {
         }
 
         // se a janela do camshift ficar muito grande, remove objeto
-        if (objetos[i].wind.height > 90 || objetos[i].wind.width > 120)
+        if (objetos[i].wind.height > 70 || objetos[i].wind.width > 70)
         {
           continue;
         }
@@ -447,6 +470,7 @@ int main(int argc, char *argv[]) {
       line(frame, p3, p4, Scalar(0, 0, 255), 3);
 
       imshow("video", frame);
+      imshow("Binario", binaryImg);
     }
 
     int key =  waitKey(10);

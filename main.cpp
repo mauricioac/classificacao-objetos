@@ -236,15 +236,16 @@ public:
       double _diametro = modelos[j].testaDiamentroEquivalente(_equi_diametro);
       double _aspect = modelos[j].testaAspectRatio(taxa);
 
-      double similaridade = 0.3f*_histograma + 0.2f*_area + 0.35f*_hull + 
-                            0.05f*_aspect + 0.05f*_solidity + 0.15f*_diametro;
-      // cout<<"similaridade = "<<similaridade<<endl;
+      double similaridade = 0.25f*_histograma + 0.2f*_area + 0.35f*_hull + 
+                            0.05f*_solidity + 0.15f*_diametro;
+      cout<<" "<<_histograma<<" "<<_area<<" "<<_hull<<" "<<_diametro<<" "<<_solidity<<endl;
+      cout<<"similaridade = "<<similaridade<<endl;
       
       if (similaridade > 0.8 && similaridade > maior) 
       {
         _classe = j;
         maior = similaridade;
-        // break;
+        break;
       }
     }
 
@@ -467,7 +468,7 @@ int main(int argc, char *argv[]) {
       mog2->apply(frame, mascara_background);
 
       // remove sombras
-      threshold(mascara_background, binaryImg, 50, 255, CV_THRESH_BINARY);
+      threshold(mascara_background, binaryImg,130, 255, CV_THRESH_BINARY);
 
       Mat binOrig = binaryImg.clone();
 
@@ -584,7 +585,7 @@ int main(int argc, char *argv[]) {
       imshow("Binario", binaryImg);
     }
 
-    int key =  waitKey(10);
+    int key =  waitKey(60);
 
     if (key == 27) 
     {

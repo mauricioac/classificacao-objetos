@@ -231,17 +231,17 @@ public:
       double _area = modelos[j].testaArea(rhist,area);
       double _hull = modelos[j].testaHullArea(_hull_area);
       double _histograma = modelos[j].testaHistograma(rhist);
-      // double _perimetro = modelos[j].testaPerimetro(_area_perimetro);
+      double _perimetro = modelos[j].testaPerimetro(_area_perimetro);
       double _solidity = modelos[j].testaSolidity(_sol);
       double _diametro = modelos[j].testaDiamentroEquivalente(_equi_diametro);
       double _aspect = modelos[j].testaAspectRatio(taxa);
 
       double similaridade = 0.25f*_histograma + 0.2f*_area + 0.35f*_hull + 
-                            0.05f*_solidity + 0.15f*_diametro;
-      cout<<" "<<_histograma<<" "<<_area<<" "<<_hull<<" "<<_diametro<<" "<<_solidity<<endl;
+                            0.1f*_solidity + 0.1f*_diametro;
+      cout<<" "<<_histograma<<" "<<_area<<" "<<_hull<<" "<<_diametro<<" "<<_solidity<<" "<<_perimetro<<endl;
       cout<<"similaridade = "<<similaridade<<endl;
       
-      if (similaridade > 0.8 && similaridade > maior) 
+      if (similaridade > 0.78f && similaridade > maior) 
       {
         _classe = j;
         maior = similaridade;

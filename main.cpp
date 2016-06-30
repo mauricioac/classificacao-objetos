@@ -30,6 +30,7 @@ public:
   float solidity;
   float equi_diametro;
   float aspect_ratio;
+  int countPixels;
 
   float testaArea(MatND h, float a)
   {
@@ -157,6 +158,31 @@ public:
     // cout<<" "<<res_histograma<<endl;
     return res_histograma;
   }
+
+  float testaCountPixels(int c)
+  {
+    float res_count_pixels = 0.0f;
+
+    if (c > countPixels)
+    {
+      res_count_pixels = ((100.0f * (float)countPixels) / (float)c);
+    }
+    else
+    {
+      res_count_pixels = ((100.0f * (float)c) / (float)countPixels);
+    }
+
+    res_count_pixels /= 100.0f;
+
+    return res_count_pixels;
+  }
+
+  float testaLarguraEAltura(double w, double h)
+  {
+    float res_count_pixels = 0.0f;
+
+    return res_count_pixels;
+  }
 };
 
 vector<Modelo> modelos;
@@ -195,7 +221,7 @@ public:
 
   Objeto(Mat imagem, Rect r, vector<Point> c) 
   {
-    cvtColor(imagem(r), rhsv, CV_BGR2HSV);
+    cvtColor(imagem, rhsv, CV_BGR2HSV);
     contorno = c;
     float area = contourArea(c);
     Rect bb = boundingRect(c);
@@ -210,6 +236,10 @@ public:
     double _equi_diametro = sqrt(4*area/pi);
 
     double taxa = (double)bb.width/(double)bb.height;
+
+    Mat gray;
+    cvtColor(imagem, gray, CV_RGB2GRAY);
+    int _countPixels = countNonZero(gray);
 
     int rhistsz = 180;    // bin size
     float range[] = { 0, 180};
@@ -233,19 +263,23 @@ public:
       double _histograma = modelos[j].testaHistograma(rhist);
       double _perimetro = modelos[j].testaPerimetro(_area_perimetro);
       double _solidity = modelos[j].testaSolidity(_sol);
+      double _count_pixels = modelos[j].testaCountPixels(_countPixels);
       double _diametro = modelos[j].testaDiamentroEquivalente(_equi_diametro);
       double _aspect = modelos[j].testaAspectRatio(taxa);
+      double _dimensao = modelos[j].testaLarguraEAltura(bb.width,bb.height);
 
-      double similaridade = 0.25f*_histograma + 0.2f*_area + 0.35f*_hull + 
-                            0.1f*_solidity + 0.1f*_diametro;
-      cout<<" "<<_histograma<<" "<<_area<<" "<<_hull<<" "<<_diametro<<" "<<_solidity<<" "<<_perimetro<<endl;
+      double similaridade = 0.15f*_histograma + 0.35f*_area +
+                          0.05f*_solidity + 0.05f*_diametro + 0.4f*_count_pixels;
+      // cout<<" "<<_histograma<<" "<<_area<<" "<<_hull<<" "<<_diametro<<" "<<_solidity<<" "<<_count_pixels<<endl;
+      cout<<_countPixels<<" " << _count_pixels << endl;
       cout<<"similaridade = "<<similaridade<<endl;
+      cout << "------------" << endl;
       
-      if (similaridade > 0.78f && similaridade > maior) 
+      if (similaridade > 0.70f && similaridade > maior) 
       {
         _classe = j;
         maior = similaridade;
-        break;
+        // break;
       }
     }
 
@@ -259,6 +293,7 @@ public:
       m.solidity = _sol;
       m.equi_diametro = _equi_diametro;
       m.aspect_ratio = taxa;
+      m.countPixels = _countPixels;
 
       modelos.push_back(m);
 
@@ -441,7 +476,7 @@ int main(int argc, char *argv[]) {
 
   pegaROI();
 
-  cvNamedWindow( "Binario", CV_WINDOW_AUTOSIZE );
+  // cvNamedWindow( "Binario", CV_WINDOW_AUTOSIZE );
 
   vector<int> contadores(10, 0);
 
@@ -528,8 +563,8 @@ int main(int argc, char *argv[]) {
         }
 
         // se não encontrar, cria um novo objeto
-        if (bb.y >= roi.y && bb.y <= roi.y + 25) {
-          Objeto o(crop, bb, contornos[i]);
+        if (bb.y >= roi.y && bb.y <= roi.y + 45) {
+          Objeto o(crop(bb), bb, contornos[i]);
           objetos.push_back(o);
         }
       }
@@ -570,7 +605,7 @@ int main(int argc, char *argv[]) {
         // mostra contagem na tela
         string text = "Contador: " + to_string(contadores[i]);
         int fontFace = FONT_HERSHEY_SIMPLEX;
-        double fontScale = 0.7;
+        double fontScale = 0.7f;
         int thickness = 2;
         cv::Point textOrg(10, 30 * offset);
 
@@ -582,10 +617,10 @@ int main(int argc, char *argv[]) {
       line(frame, p3, p4, Scalar(0, 0, 255), 3);
 
       imshow("video", frame);
-      imshow("Binario", binaryImg);
+      // imshow("Binario", mascara_background);
     }
 
-    int key =  waitKey(60);
+    int key =  waitKey(20);
 
     if (key == 27) 
     {

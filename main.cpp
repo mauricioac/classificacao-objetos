@@ -76,16 +76,38 @@ public:
 
 vector<Modelo> modelos;
 Scalar cores[] = {
-  Scalar(255, 0, 0),
-  Scalar(255, 255, 0),
-  Scalar(255, 0, 255),
-  Scalar(0, 255, 0),
-  Scalar(0, 0, 255),
-  Scalar(0, 0, 128),
-  Scalar(0, 128, 128),
-  Scalar(128, 0, 255),
-  Scalar(0,250, 255),
-  Scalar(0, 255, 255)
+  Scalar(255, 0, 0),//1
+  Scalar(255, 255, 0),//2
+  Scalar(255, 0, 255),//3
+  Scalar(0, 255, 0),//4
+  Scalar(0, 0, 255),//5
+  Scalar(0, 0, 128),//6
+  Scalar(0, 128, 128),//7
+  Scalar(128, 0, 255),//8
+  Scalar(0,250, 255),//9
+  Scalar(0, 255, 255),//10
+  Scalar(255, 182, 0),//11
+  Scalar(0,0,0),//12
+  Scalar(255,255,255),//13
+  Scalar(59, 255, 0),//14
+  Scalar(127, 0, 255),//15
+  Scalar(255, 242, 0),//16
+  Scalar(147, 103, 103),//17
+  Scalar(0, 255, 33),//18
+  Scalar(163, 70, 153),//19
+  Scalar(0, 140, 255),//20
+  Scalar(158, 170, 102),//21
+  Scalar(255, 84, 0),//22
+  Scalar(53, 84, 50),//23
+  Scalar(72, 79, 145),//24
+  Scalar(90, 27, 163),//25
+  Scalar(12, 55, 140),//26
+  Scalar(137, 26, 26),//27
+  Scalar(201, 98, 98),//28
+  Scalar(216, 52, 131),//29
+  Scalar(244, 204, 0)//30
+
+
 };
 
 float distanciaEuclidiana(Point& p, Point& q) {
@@ -358,7 +380,7 @@ int main(int argc, char *argv[]) {
   pegaROI();
 
   // vetor de contadores independentes, por classe
-  vector<int> contadores(10, 0);
+  vector<int> contadores(30, 0);
 
   vector<Objeto> objetos;
   bool pausar = false;
@@ -428,7 +450,7 @@ int main(int argc, char *argv[]) {
         for (int j = 0; j < (int)objetos.size(); j++) {
           Rect intersecao = bb & objetos[j].wind;
 
-          if (intersecao.height > 15 || intersecao.width > 9) {
+          if (intersecao.height > 4 || intersecao.width > 4) {
             achou = true;
           }
         }

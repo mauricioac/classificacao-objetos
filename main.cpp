@@ -19,6 +19,7 @@ using namespace std;
 using namespace cv;
 
 double pi = 3.1415926535897;
+const int DELAY_AQUISICAO = 10;
 
 class Modelo
 {
@@ -50,16 +51,6 @@ public:
   float testaArea(float a)
   {
     return regraDeTres(area, a);
-  }
-
-  float testaSolidity(float s)
-  {
-    return regraDeTres(solidity, s);
-  }
-
-  float testaDiamentroEquivalente(float ed)
-  {
-    return regraDeTres(equi_diametro, ed);
   }
 
   float testaCountPixels(int c)
@@ -188,13 +179,10 @@ public:
        */
       double _area = modelos[j].testaArea(area);
       double _histograma = modelos[j].testaHistograma(rhist);
-      double _solidity = modelos[j].testaSolidity(_sol);
       double _count_pixels = modelos[j].testaCountPixels(_countPixels);
-      double _diametro = modelos[j].testaDiamentroEquivalente(_equi_diametro);
 
       // Fórmula para agregar as medidas de similaridade
-      double similaridade = 0.15f*_histograma + 0.35f*_area +
-                          0.05f*_solidity + 0.05f*_diametro + 0.4f*_count_pixels;
+      double similaridade = 0.18f*_histograma + 0.48f*_area + 0.34f*_count_pixels;
 
       if (similaridade > 0.70f && similaridade > maior)
       {
@@ -415,6 +403,13 @@ int main(int argc, char *argv[]) {
 
       morphologyEx(binaryImg, binaryImg, CV_MOP_ERODE, elemento);
       morphologyEx(binaryImg, binaryImg, CV_MOP_ERODE, elemento);
+      
+      for (int w = 0; w < 1; w++)
+      {
+        morphologyEx(binaryImg,binaryImg,CV_MOP_OPEN,elemento);
+        morphologyEx(binaryImg,binaryImg,CV_MOP_CLOSE,elemento);
+      }
+      
 
       Mat ContourImg = binaryImg.clone();
 
@@ -438,7 +433,7 @@ int main(int argc, char *argv[]) {
         Rect bb = boundingRect(contornos[i]);
 
         // objeto muito pequeno, cai fora
-        if (bb.width <= 5 || bb.height <= 5 || bb.width >= 70 || bb.height >= 50)
+        if (bb.width <= 4 || bb.height <= 4 || bb.width >= 70 || bb.height >= 50)
         {
           continue;
         }
@@ -514,7 +509,7 @@ int main(int argc, char *argv[]) {
       // imshow("Binario", mascara_background);
     }
 
-    int key =  waitKey(20);
+    int key =  waitKey(DELAY_AQUISICAO);
 
     if (key == 27)
     {
@@ -528,7 +523,7 @@ int main(int argc, char *argv[]) {
 
   // mostra contadores no terminal também
   int total = 0;
-  for (int i = 0; i < (int) contadores.size(); i++)
+  for (int i = 0; i < (int)contadores.size(); i++)
   {
     if (contadores[i] < 1) {
       continue;

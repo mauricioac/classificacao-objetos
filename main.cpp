@@ -1,6 +1,6 @@
 /**
  * Alunos: Silvana Trindade e Maurício André Cinelli
- * Trabalho IV: tracking e contagem de objetos com CamShift
+ * Trabalho V: Classificação de objetos
  * Opencv versão 3.0
  */
 
@@ -22,166 +22,55 @@ double pi = 3.1415926535897;
 
 class Modelo
 {
-public:  
+public:
   MatND histograma;
   float area;
-  float hull_area;
-  float perimetro;
   float solidity;
   float equi_diametro;
-  float aspect_ratio;
   int countPixels;
 
-  float testaArea(MatND h, float a)
+  float regraDeTres(float a, float  b)
   {
-    float res_area = 0.0f;
+    float res = 0.0f;
 
-    if (a > area)
+    if (b > a)
     {
-      res_area = ((100.0f * area) / a);
+      res = ((100.0f * a) / b);
     }
     else
     {
-      res_area = ((100.0f * a) / area);
+      res = ((100.0f * b) / a);
     }
 
-    res_area /= 100.0f;
+    res /= 100.0f;
 
-    // cout << res_area << " " << res_histograma << endl;
-    return res_area;
+    return res;
   }
 
-  float testaHullArea(float h)
+  float testaArea(float a)
   {
-    float res_area = 0.0f;
-
-    if (h > hull_area)
-    {
-      res_area = ((100.0f * hull_area) / h);
-    }
-    else
-    {
-      res_area = ((100.0f * h) / hull_area);
-    }
-    
-    // cout<<" res_area "<<res_area<<endl;
-    res_area /= 100.0f;
-    // float solidity = a/hull_area;
-    // cout<<"solidity "<<solidity<<endl;
-
-    return res_area;
+    return regraDeTres(area, a);
   }
 
   float testaSolidity(float s)
   {
-    float res_solidity = 0.0f;
-
-    if (s > solidity)
-    {
-      res_solidity = ((100.0f * solidity) / s);
-    }
-    else
-    {
-      res_solidity = ((100.0f * s) / solidity);
-    }
-    
-    // cout<<" res_area "<<res_area<<endl;
-    res_solidity /= 100.0f;
-    
-    // cout<<"solidity "<<solidity<<endl;
-
-    return res_solidity;
-  }
-
-  float testaAspectRatio(float r)
-  {
-    float res_aspect_ratio = 0.0f;
-
-    if (r > aspect_ratio)
-    {
-      res_aspect_ratio = ((100.0f * aspect_ratio) / r);
-    }
-    else
-    {
-      res_aspect_ratio = ((100.0f * r) / aspect_ratio);
-    }
-
-    res_aspect_ratio /= 100.0f;
-  
-    return res_aspect_ratio;
+    return regraDeTres(solidity, s);
   }
 
   float testaDiamentroEquivalente(float ed)
   {
-    float res_eq_diametro = 0.0f;
-
-    if (ed > equi_diametro)
-    {
-      res_eq_diametro = ((100.0f * equi_diametro) / ed);
-    }
-    else
-    {
-      res_eq_diametro = ((100.0f * ed) / equi_diametro);
-    }
-    
-    // cout<<" res_area "<<res_area<<endl;
-    res_eq_diametro /= 100.0f;
-    
-    // cout<<"equi_diametro "<<res_eq_diametro<<endl;
-
-    return res_eq_diametro;
+    return regraDeTres(equi_diametro, ed);
   }
 
-
-  float testaPerimetro(float p)
+  float testaCountPixels(int c)
   {
-    float res_perimetro = 0.0f;
-
-    if (p > perimetro)
-    {
-      res_perimetro = ((100.0f * perimetro) / p);
-    }
-    else
-    {
-      res_perimetro = ((100.0f * p) / perimetro);
-    }
-    
-    cout<<" res_perimetro "<<res_perimetro<<endl;
-    res_perimetro /= 100.0f;
-   
-    return res_perimetro;
+    return regraDeTres((float)countPixels, (float)c);
   }
 
   float testaHistograma(MatND h)
   {
     float res_histograma = compareHist(h, histograma, CV_COMP_CORREL);
-    // cout<<" "<<res_histograma<<endl;
     return res_histograma;
-  }
-
-  float testaCountPixels(int c)
-  {
-    float res_count_pixels = 0.0f;
-
-    if (c > countPixels)
-    {
-      res_count_pixels = ((100.0f * (float)countPixels) / (float)c);
-    }
-    else
-    {
-      res_count_pixels = ((100.0f * (float)c) / (float)countPixels);
-    }
-
-    res_count_pixels /= 100.0f;
-
-    return res_count_pixels;
-  }
-
-  float testaLarguraEAltura(double w, double h)
-  {
-    float res_count_pixels = 0.0f;
-
-    return res_count_pixels;
   }
 };
 
@@ -219,80 +108,88 @@ public:
   int classe;
   vector<Point> contorno;
 
-  Objeto(Mat imagem, Rect r, vector<Point> c) 
+  Objeto(Mat imagem, Rect r, vector<Point> c)
   {
+    // converte imagem para HSV para histograma
     cvtColor(imagem, rhsv, CV_BGR2HSV);
+
     contorno = c;
-    float area = contourArea(c);
     Rect bb = boundingRect(c);
 
+    // area do contorno
+    float area = contourArea(c);
+
+    // Calcula o convex hull do objeto
+    // que é um poligono que envolve o objeto
     vector< Point > _hull;
     convexHull( Mat(contorno), _hull, false );
+
+    // Área do convex hull
     float _hull_area = contourArea(_hull);
 
-    double _area_perimetro = arcLength(c, true);
-
+    // Solidity = o quão sólido o objeto é
     double _sol = area/_hull_area;
+
+    // diâmetro
     double _equi_diametro = sqrt(4*area/pi);
 
-    double taxa = (double)bb.width/(double)bb.height;
-
+    // contagem de pixels
+    // como imagem do objeto tem fundo preto
+    // basta contar numero de pixels "não-zero"
     Mat gray;
     cvtColor(imagem, gray, CV_RGB2GRAY);
     int _countPixels = countNonZero(gray);
 
+    // calcula histograma
     int rhistsz = 180;    // bin size
     float range[] = { 0, 180};
     const float *ranges[] = { range };
     int channels[] = {0};
-
     calcHist( &rhsv, 1, channels, Mat(), rhist, 1, &rhistsz, ranges, true, false );
     normalize(rhist,rhist,0,255,NORM_MINMAX, -1, Mat() );
 
     wind = r;
+
+    /**
+     * Acha classe do objeto ou cria uma nova
+     */
+
     int _classe = -1;
     double maior = -1;
 
     for (int j = 0; j < (int)modelos.size(); j++) {
-      
+
       /**
        * Obtêm a similaridade dos objetos
+       * testa o quão similar, em porcentagem, um objeto
+       * é em relação ao model em diferentes medidas
        */
-      double _area = modelos[j].testaArea(rhist,area);
-      double _hull = modelos[j].testaHullArea(_hull_area);
+      double _area = modelos[j].testaArea(area);
       double _histograma = modelos[j].testaHistograma(rhist);
-      double _perimetro = modelos[j].testaPerimetro(_area_perimetro);
       double _solidity = modelos[j].testaSolidity(_sol);
       double _count_pixels = modelos[j].testaCountPixels(_countPixels);
       double _diametro = modelos[j].testaDiamentroEquivalente(_equi_diametro);
-      double _aspect = modelos[j].testaAspectRatio(taxa);
-      double _dimensao = modelos[j].testaLarguraEAltura(bb.width,bb.height);
 
+      // Fórmula para agregar as medidas de similaridade
       double similaridade = 0.15f*_histograma + 0.35f*_area +
                           0.05f*_solidity + 0.05f*_diametro + 0.4f*_count_pixels;
-      // cout<<" "<<_histograma<<" "<<_area<<" "<<_hull<<" "<<_diametro<<" "<<_solidity<<" "<<_count_pixels<<endl;
-      cout<<_countPixels<<" " << _count_pixels << endl;
-      cout<<"similaridade = "<<similaridade<<endl;
-      cout << "------------" << endl;
-      
-      if (similaridade > 0.70f && similaridade > maior) 
+
+      if (similaridade > 0.70f && similaridade > maior)
       {
         _classe = j;
         maior = similaridade;
-        // break;
       }
     }
 
-    if (_classe == -1) 
+    // se não encontrou classe, cria uma nova
+    // utilizando o objeto como modelo
+    if (_classe == -1)
     {
       Modelo m;
       m.area = area;
       m.histograma = rhist;
-      m.hull_area = _hull_area;
-      m.perimetro = _area_perimetro;
       m.solidity = _sol;
       m.equi_diametro = _equi_diametro;
-      m.aspect_ratio = taxa;
       m.countPixels = _countPixels;
 
       modelos.push_back(m);
@@ -303,6 +200,9 @@ public:
     classe = _classe;
   }
 
+  // A partir de uma lista de contornos tenta encontrar
+  // um objeto cuja distancia entre os centros seja
+  // pequena, indicando que é o mesmo objeto do frame anterior
   int track(vector< vector<Point> > &contornos, Mat &image) {
     int menor_indice = -1;
     double menor_distancia = std::numeric_limits<double>::max();
@@ -338,11 +238,7 @@ public:
 Mat img, imgtemp;
 Rect roi;
 Point p1, p2, p3;
- bool
-  flag1 = false,
-  flag2 = false,
-  flag3 = false,
-  flag4 = true;
+bool flag1 = false, flag2 = false, flag3 = false, flag4 = true;
 
 void on_mouse( int event, int x, int y, int flags, void* param )
 {
@@ -418,21 +314,6 @@ bool pegaROI() {
     return true;
 }
 
-MatND calculaHistograma(Mat &img)
-{
-  int rhistsz = 180;    // bin size
-  float range[] = { 0, 180};
-  const float *ranges[] = { range };
-  int channels[] = {0};
-  MatND rhist;
-  Mat rhsv;
-  cvtColor(img, rhsv, CV_BGR2HSV);
-
-  calcHist( &rhsv, 1, channels, Mat(), rhist, 1, &rhistsz, ranges, true, false );
-
-  return rhist;
-}
-
 int main(int argc, char *argv[]) {
   // verifica se vai pegar video de arquivo ou câmera
   bool stream = false;
@@ -462,8 +343,8 @@ int main(int argc, char *argv[]) {
 
   mog2->setBackgroundRatio(0.01);
 
-  // pega X frames para estabilizar background
-  for (int i = 0; i < 80; i++) {
+  for (int i = 0; i < 80; i++)
+  {
     *cap >> frame;
     mog2->apply(frame, mascara_background);
   }
@@ -476,18 +357,21 @@ int main(int argc, char *argv[]) {
 
   pegaROI();
 
-  // cvNamedWindow( "Binario", CV_WINDOW_AUTOSIZE );
-
+  // vetor de contadores independentes, por classe
   vector<int> contadores(10, 0);
 
   vector<Objeto> objetos;
   bool pausar = false;
 
+  // largura e altura do frame
   double hframe = frame.size().height;
   double wframe = frame.size().width;
 
+  // pontos para linha superior
   Point p1(0, roi.y);
   Point p2(wframe, roi.y);
+
+  // pontos para linha inferior
   Point p3(0, roi.y + roi.height + 5);
   Point p4(wframe, roi.y + roi.height + 5);
 
@@ -509,10 +393,6 @@ int main(int argc, char *argv[]) {
 
       morphologyEx(binaryImg, binaryImg, CV_MOP_ERODE, elemento);
       morphologyEx(binaryImg, binaryImg, CV_MOP_ERODE, elemento);
-      // for (int t = 0; t < 1; t++)
-      // {
-      //   morphologyEx(binaryImg, binaryImg, CV_MOP_OPEN, elemento);
-      // }
 
       Mat ContourImg = binaryImg.clone();
 
@@ -525,22 +405,18 @@ int main(int argc, char *argv[]) {
       drawContours(mask, contornos, -1, Scalar(255, 255, 255), CV_FILLED);
 
       // cria uma nova imagem, sobrepondo o frame com a máscara
-      // assim pinta somente os objetos, num fundo branco
+      // assim pinta somente os objetos, num fundo preto
       Mat crop(frame.rows, frame.cols, frame.type());
       crop.setTo(Scalar(0,0,0));
       frame.copyTo(crop, mask);
 
 
-      for (int i = 0; i < (int)contornos.size(); i++) 
+      for (int i = 0; i < (int)contornos.size(); i++)
       {
         Rect bb = boundingRect(contornos[i]);
 
         // objeto muito pequeno, cai fora
-        if (bb.width <= 5 || bb.height <= 5)
-        {
-          continue;
-        }
-        else if (bb.width >= 70 || bb.height >= 50)
+        if (bb.width <= 5 || bb.height <= 5 || bb.width >= 70 || bb.height >= 50)
         {
           continue;
         }
@@ -557,7 +433,7 @@ int main(int argc, char *argv[]) {
           }
         }
 
-        if (achou) 
+        if (achou)
         {
           continue;
         }
@@ -569,7 +445,8 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      // percorre objetos, chamando Camshift
+      // percorre objetos, chamando a função `track`
+      // de cada objeto para pegar sua proxima posição
       vector<Objeto> novos_objetos;
       for (int i = 0; i < (int) objetos.size(); i++) {
         int result = objetos[i].track(contornos, frame);
@@ -583,18 +460,13 @@ int main(int argc, char *argv[]) {
           continue;
         }
 
-        // se a janela do camshift ficar muito grande, remove objeto
-        if (objetos[i].wind.height > 70 || objetos[i].wind.width > 70)
-        {
-          continue;
-        }
-
         // se objeto deve continuar, coloca-o em um novo vetor
         novos_objetos.push_back(objetos[i]);
       }
 
       objetos = novos_objetos;
 
+      // mostra os contadores
       int offset = 1;
       for (int i = 0; i < (int) contadores.size(); i++)
       {
@@ -622,7 +494,7 @@ int main(int argc, char *argv[]) {
 
     int key =  waitKey(20);
 
-    if (key == 27) 
+    if (key == 27)
     {
       break;
     }
@@ -631,6 +503,8 @@ int main(int argc, char *argv[]) {
       pausar = !pausar;
     }
   }
+
+  // mostra contadores no terminal também
   int total = 0;
   for (int i = 0; i < (int) contadores.size(); i++)
   {
